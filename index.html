@@ -25,8 +25,8 @@
   .logo-text { font-size: 20px; font-weight: 800; letter-spacing: -0.3px; color: #fff; }
   .season-badge { background: var(--purple-glow); border: 1px solid var(--purple); border-radius: 20px; padding: 4px 14px; font-size: 12px; font-weight: 600; color: var(--purple-light); }
   .nav-tabs { background: var(--navy2); border-bottom: 1px solid var(--border); padding: 0 24px; }
-  .nav-tabs-inner { max-width: 1000px; margin: 0 auto; display: flex; gap: 4px; }
-  .tab-btn { background: none; border: none; color: var(--muted); font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 600; padding: 14px 16px; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; transition: color 0.15s, border-color 0.15s; }
+  .nav-tabs-inner { max-width: 1000px; margin: 0 auto; display: flex; gap: 4px; overflow-x: auto; }
+  .tab-btn { background: none; border: none; color: var(--muted); font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 600; padding: 14px 16px; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; transition: color 0.15s, border-color 0.15s; white-space: nowrap; }
   .tab-btn:hover { color: var(--text); }
   .tab-btn.active { color: var(--purple-light); border-bottom-color: var(--purple-light); }
   main { max-width: 1000px; margin: 0 auto; padding: 32px 24px 80px; }
@@ -36,6 +36,7 @@
   /* RANGLISTE */
   .table-wrap { background: var(--card); border-radius: 12px; overflow: auto; border: 1px solid var(--border); margin-bottom: 40px; }
   table { width: 100%; border-collapse: collapse; min-width: 600px; }
+  table.table-compact { min-width: 0; }
   thead tr { background: var(--card2); border-bottom: 1px solid var(--border); }
   thead th { padding: 11px 14px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: var(--muted); text-align: center; white-space: nowrap; }
   thead th:first-child { text-align: left; padding-left: 18px; }
@@ -46,6 +47,7 @@
   td { padding: 13px 14px; font-size: 14px; text-align: center; }
   td:first-child { padding-left: 18px; text-align: left; width: 60px; }
   td:nth-child(2) { text-align: left; font-weight: 600; color: #fff; }
+  td.empty-msg { text-align: center; color: var(--muted); font-weight: 500; width: auto; padding: 28px 18px; }
   .rank { font-size: 13px; font-weight: 700; color: var(--muted); }
   .rank-1 { color: var(--gold); } .rank-2 { color: var(--silver); } .rank-3 { color: var(--bronze); }
   .points-cell { font-weight: 800; font-size: 15px; color: #fff; }
@@ -77,6 +79,8 @@
     .stat-grid { grid-template-columns: repeat(2, 1fr); }
     td, th { padding: 10px 8px; font-size: 13px; }
     .player-select-grid { grid-template-columns: repeat(3, 1fr); }
+    .nav-tabs { padding: 0 8px; }
+    .tab-btn { padding: 14px 10px; }
   }
 </style>
 </head>
@@ -106,6 +110,7 @@
   <div class="nav-tabs-inner">
     <button class="tab-btn active" onclick="switchTab('rangliste', this)">Rangliste</button>
     <button class="tab-btn" onclick="switchTab('spillere', this)">Spillerprofiler</button>
+    <button class="tab-btn" onclick="switchTab('samlet', this)">Den samlede tabel</button>
   </div>
 </div>
 <main>
@@ -224,6 +229,27 @@
       </div>
     </div>
   </div>
+  <!-- DEN SAMLEDE TABEL VIEW (data fra Ark 2) -->
+  <div id="view-samlet" class="view">
+    <div class="section-header">
+      <div class="section-title">Den samlede tabel</div>
+      <div class="section-line"></div>
+    </div>
+    <div class="table-wrap">
+      <table class="table-compact">
+        <thead>
+          <tr>
+            <th>Placering</th>
+            <th>Spiller</th>
+            <th>Samlet point</th>
+          </tr>
+        </thead>
+        <tbody id="samlet-body">
+          <tr><td colspan="3" class="empty-msg">Henter data fra Ark 2...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
 </main>
 <script>
   // =========================================================================
@@ -236,9 +262,11 @@
   // Ark 1 (Ranglisten)
   const URL_ARK_1 = "https://docs.google.com/spreadsheets/d/1_ZttlpSvafOSvf6CLG0Gd6UyYfPoYutCbDs2d5zIUTU/gviz/tq?tqx=out:csv&headers=1";
 
-  // Ark 2 (Kamp-log med kolonnerne "Spiller", "Score" og "Gået hjem")
-  // Brug samme format, men med &gid=XXXX for det rigtige faneblad:
-  // https://docs.google.com/spreadsheets/d/DIT_ID/gviz/tq?tqx=out:csv&headers=1&gid=123456
+  // Ark 2 (bruges til "Den samlede tabel" + evt. "Gået hjem" og scorer)
+  // Brug samme format som Ark 1, men tilføj &gid=XXXX for det rigtige faneblad.
+  // gid-tallet står i adresselinjen i Google Sheets, når du har Ark 2 åbent (…#gid=123456).
+  // Eksempel:
+  // https://docs.google.com/spreadsheets/d/1_ZttlpSvafOSvf6CLG0Gd6UyYfPoYutCbDs2d5zIUTU/gviz/tq?tqx=out:csv&headers=1&gid=123456
   const URL_ARK_2 = "INDSÆT_LINK_TIL_ARK_2_HER";
   // =========================================================================
 
@@ -265,6 +293,15 @@
   function num(v) {
     const n = parseFloat(String(v).replace(',', '.'));
     return isNaN(n) ? 0 : n;
+  }
+
+  function isNumber(v) {
+    return v !== '' && !isNaN(parseFloat(String(v).replace(',', '.')));
+  }
+
+  // Viser tal pænt (heltal uden decimaler, ellers dansk komma)
+  function fmt(n) {
+    return Number.isInteger(n) ? String(n) : n.toFixed(1).replace('.', ',');
   }
 
   // Skift mellem tabs
@@ -310,6 +347,55 @@
     document.getElementById('stat-highscore').innerText = isFinite(data.highScore) ? data.highScore : '-';
     document.getElementById('stat-lowscore').innerText  = isFinite(data.lowScore)  ? data.lowScore  : '-';
     document.getElementById('stat-allhome').innerText   = data.allHome;
+  }
+
+  // =========================================================================
+  // DEN SAMLEDE TABEL (Ark 2)
+  // Lægger point sammen pr. spiller. Har Ark 2 kun én række pr. spiller,
+  // bliver det bare den værdi. Er det en kamp-log med mange rækker pr.
+  // spiller, bliver alle rækkerne lagt sammen.
+  // Kolonnen med point må hedde: "Samlet point", "Samlede point", "Point" eller "Score".
+  // =========================================================================
+  function buildSamletTabel(rows) {
+    const body = document.getElementById('samlet-body');
+    const totals = {};
+
+    rows.forEach(row => {
+      const name = col(row, 'Spiller', 'Navn');
+      if (!name) return;
+      const p = col(row, 'Samlet point', 'Samlede point', 'Point', 'Score');
+      if (!(name in totals)) totals[name] = 0;
+      if (isNumber(p)) totals[name] += num(p);
+    });
+
+    const list = Object.entries(totals).sort((a, b) => b[1] - a[1]);
+
+    if (list.length === 0) {
+      body.innerHTML = `<tr><td colspan="3" class="empty-msg">Ark 2 blev hentet, men jeg kunne ikke finde en kolonne der hedder 'Spiller'. Tjek overskrifterne i Ark 2.</td></tr>`;
+      return;
+    }
+
+    let html = '';
+    let rank = 0;
+    let lastPoints = null;
+    list.forEach(([name, points], index) => {
+      // Spillere med samme point deler placering
+      if (points !== lastPoints) { rank = index + 1; lastPoints = points; }
+
+      let rankClass = '';
+      if (rank === 1) rankClass = 'rank-1';
+      else if (rank === 2) rankClass = 'rank-2';
+      else if (rank === 3) rankClass = 'rank-3';
+
+      html += `
+      <tr class="${rank <= 3 ? 'top3-row' : ''}">
+        <td><span class="rank ${rankClass}">${rank}</span></td>
+        <td class="player-name">${name}</td>
+        <td class="points-cell">${fmt(points)}</td>
+      </tr>`;
+    });
+
+    body.innerHTML = html;
   }
 
   // Læs data fra Google Sheets og udregn det hele
@@ -393,49 +479,68 @@
         btn.addEventListener('click', () => selectPlayer(btn.dataset.player, btn));
       });
 
-      // 2. Kamp-log (Ark 2) - kun nødvendig for "Gået hjem".
-      //    Højeste/laveste score kommer allerede fra Ark 1, men bliver
-      //    overskrevet her hvis Ark 2 indeholder scorer.
-      try {
-        if (URL_ARK_2 && URL_ARK_2.includes("http")) {
-          const csv2 = await fetch(URL_ARK_2).then(res => res.text());
-          const sheet2 = Papa.parse(csv2, { header: true, skipEmptyLines: true }).data.map(cleanRow);
-
-          const sawScore = {};
-          sheet2.forEach(row => {
-            const name = col(row, 'Spiller', 'Navn');
-            const scoreText = col(row, 'Score');
-            const wentHome = col(row, 'Gået hjem', 'Gaaet hjem').toLowerCase();
-
-            if (!name || !playerData[name]) return;
-
-            if (scoreText !== '' && !isNaN(parseFloat(scoreText))) {
-              const score = num(scoreText);
-              if (!sawScore[name]) {
-                playerData[name].highScore = score;
-                playerData[name].lowScore = score;
-                sawScore[name] = true;
-              } else {
-                if (score > playerData[name].highScore) playerData[name].highScore = score;
-                if (score < playerData[name].lowScore)  playerData[name].lowScore = score;
-              }
-            }
-
-            if (wentHome === 'nej') playerData[name].allHome = 'Nej';
-          });
-
-          Object.keys(playerData).forEach(name => {
-            if (num(playerData[name].matches) > 0 && playerData[name].allHome !== 'Nej') {
-              playerData[name].allHome = 'Ja';
-            }
-          });
-        }
-      } catch (e) {
-        console.log("Ark 2 ikke aflæst. Vi bruger bare data fra Ark 1.", e);
-      }
-
+      // Vis ranglisten med det samme - Ark 2 hentes bagefter
       loading.style.display = 'none';
       document.getElementById('view-rangliste').classList.add('active');
+
+      // 2. Ark 2 - bruges til "Den samlede tabel" og til "Gået hjem"/scorer
+      const samletBody = document.getElementById('samlet-body');
+      if (!URL_ARK_2 || !URL_ARK_2.includes("http")) {
+        samletBody.innerHTML = `<tr><td colspan="3" class="empty-msg">Linket til Ark 2 er ikke sat ind i koden endnu.</td></tr>`;
+        return;
+      }
+
+      let sheet2 = [];
+      try {
+        const csv2 = await fetch(URL_ARK_2).then(res => res.text());
+        sheet2 = Papa.parse(csv2, { header: true, skipEmptyLines: true }).data.map(cleanRow);
+      } catch (e) {
+        console.log("Ark 2 kunne ikke hentes.", e);
+        samletBody.innerHTML = `<tr><td colspan="3" class="empty-msg">Kunne ikke hente data fra Ark 2.</td></tr>`;
+        return;
+      }
+
+      // 2a. Den samlede tabel
+      try {
+        buildSamletTabel(sheet2);
+      } catch (e) {
+        console.log("Fejl i den samlede tabel.", e);
+        samletBody.innerHTML = `<tr><td colspan="3" class="empty-msg">Kunne ikke udregne den samlede tabel.</td></tr>`;
+      }
+
+      // 2b. "Gået hjem" og højeste/laveste score til spillerprofilerne
+      try {
+        const sawScore = {};
+        sheet2.forEach(row => {
+          const name = col(row, 'Spiller', 'Navn');
+          const scoreText = col(row, 'Score');
+          const wentHome = col(row, 'Gået hjem', 'Gaaet hjem').toLowerCase();
+
+          if (!name || !playerData[name]) return;
+
+          if (isNumber(scoreText)) {
+            const score = num(scoreText);
+            if (!sawScore[name]) {
+              playerData[name].highScore = score;
+              playerData[name].lowScore = score;
+              sawScore[name] = true;
+            } else {
+              if (score > playerData[name].highScore) playerData[name].highScore = score;
+              if (score < playerData[name].lowScore)  playerData[name].lowScore = score;
+            }
+          }
+
+          if (wentHome === 'nej') playerData[name].allHome = 'Nej';
+        });
+
+        Object.keys(playerData).forEach(name => {
+          if (num(playerData[name].matches) > 0 && playerData[name].allHome !== 'Nej') {
+            playerData[name].allHome = 'Ja';
+          }
+        });
+      } catch (e) {
+        console.log("Ark 2 ikke aflæst til profiler. Vi bruger bare data fra Ark 1.", e);
+      }
 
     } catch (error) {
       console.error("Fejl:", error);
